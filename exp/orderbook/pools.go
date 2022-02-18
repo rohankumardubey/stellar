@@ -120,15 +120,34 @@ func CalculatePoolPayout(reserveA, reserveB, received xdr.Int64, feeBips xdr.Int
 	var roundingSlippageBips xdr.Int64
 	ok := true
 	if calculateRoundingSlippage && !new(uint256.Int).Mod(numer, denom).IsZero() {
-		S := new(uint256.Int) // Rounding Slippage in bips
-		// Recalculate with more precision
+		// Calculates the rounding slippage (S) in bips (Basis points)
+		//
+		// S is the % which the rounded result deviates from the unrounded.
+		// i.e. How much "error" did the rounding introduce?
+		//
+		//      unrounded = Xy / ((Y - y)(1 - F))
+		//      expectation = ceil[unrounded]
+		//      S = abs(expectation - unrounded) / unrounded
+		//
+		// For example, for:
+		//
+		//      X = 200    // 200 stroops of deposited asset in reserves
+		//      Y = 300    // 300 stroops of disbursed asset in reserves
+		//      y = 3      // disbursing 3 stroops
+		//      F = 0.003  // fee is 0.3%
+		//      unrounded = (200 * 3) / ((300 - 3)(1 - 0.003)) = 2.03
+		//      S = abs(ceil(2.03) - 2.03) / 2.03 = 47.78%
+		//      toBips(S) = 4778
+		//
+		S := new(uint256.Int)
 		unrounded, rounded := new(uint256.Int), new(uint256.Int)
+		// Upscale to centibips for extra precision
 		unrounded.Mul(numer, maxBips).Div(unrounded, denom)
 		rounded.Mul(result, maxBips)
 		S.Sub(unrounded, rounded)
 		S.Abs(S).Mul(S, maxBips)
 		S.Div(S, unrounded)
-		S.Div(S, uint256.NewInt(100)) // Take off the excess 2 decimal places
+		S.Div(S, uint256.NewInt(100)) // Downscale from centibips to bips
 		roundingSlippageBips = xdr.Int64(S.Uint64())
 		ok = ok && S.IsUint64() && roundingSlippageBips >= 0
 	}
@@ -178,15 +197,34 @@ func CalculatePoolExpectation(
 		result.AddUint64(result, 1)
 
 		if calculateRoundingSlippage {
-			S := new(uint256.Int) // Rounding Slippage in bips
-			// Recalculate with more precision
+			// Calculates the rounding slippage (S) in bips (Basis points)
+			//
+			// S is the % which the rounded result deviates from the unrounded.
+			// i.e. How much "error" did the rounding introduce?
+			//
+			//      unrounded = Xy / ((Y - y)(1 - F))
+			//      expectation = ceil[unrounded]
+			//      S = abs(expectation - unrounded) / unrounded
+			//
+			// For example, for:
+			//
+			//      X = 200    // 200 stroops of deposited asset in reserves
+			//      Y = 300    // 300 stroops of disbursed asset in reserves
+			//      y = 3      // disbursing 3 stroops
+			//      F = 0.003  // fee is 0.3%
+			//      unrounded = (200 * 3) / ((300 - 3)(1 - 0.003)) = 2.03
+			//      S = abs(ceil(2.03) - 2.03) / 2.03 = 47.78%
+			//      toBips(S) = 4778
+			//
+			S := new(uint256.Int)
 			unrounded, rounded := new(uint256.Int), new(uint256.Int)
+			// Upscale to centibips for extra precision
 			unrounded.Mul(numer, maxBips).Div(unrounded, denom)
 			rounded.Mul(result, maxBips)
 			S.Sub(unrounded, rounded)
 			S.Abs(S).Mul(S, maxBips)
 			S.Div(S, unrounded)
-			S.Div(S, uint256.NewInt(100)) // Take off the excess 2 decimal places
+			S.Div(S, uint256.NewInt(100)) // Downscale from centibips to bips
 			roundingSlippageBips = xdr.Int64(S.Uint64())
 			ok = ok && S.IsUint64() && roundingSlippageBips >= 0
 		}
